@@ -85,32 +85,37 @@ class Scan(object):
         # 如果出现‘gbk' codec can't decode bytes in position 31023: illegal multibyte sequence 
         # fileIndex = open('./dirScan/PHP.txt','r',encoding='gb18030',errors='ignore')
         fileIndex = open('./dirScan/DIR.txt','r')
+        proxies = ''
+        if proxy:
+            #获取代理
+            proxies = self.__getProxyIp()
         for line in fileIndex.readlines():
             line=line.strip('\n')
-            url = url+'/'+line
-            proxies = ''
-            if proxy:
-                #获取代理
-                proxies = self.__getProxyIp()
-            self.indexScan(url,proxies)
+            test_url = url+'/'+line
+            self.indexScan(test_url,proxies)
 
     # 获取代理
     def __getProxyIp(self,types='2',count='1',country='国内'):
         try:
             r = requests.get(self.GET_PROXY+'?types='+types+'&count='+count+'&country='+country)
-            print(self.GET_PROXY+'?types='+types+'&count='+count+'&country='+country,r.text)
-            ip_ports = json.loads(r.text)
-            ip = ip_ports[0][0]
-            port = ip_ports[0][1]
-            proxies={
-                'http':'http://%s:%s'%(ip,port),
-                'https':'http://%s:%s'%(ip,port)
-            }
+            ip = '************'
+            while ip not in r.text:
+                r = requests.get(self.GET_PROXY+'?types='+types+'&count='+count+'&country='+country)
+                # print(self.GET_PROXY+'?types='+types+'&count='+count+'&country='+country,r.text)
+                ip_ports = json.loads(r.text)
+                ip = ip_ports[0][0]
+                port = ip_ports[0][1]
+                proxies={
+                    'http':'http://%s:%s'%(ip,port),
+                    'https':'http://%s:%s'%(ip,port)
+                }
+                r = requests.get('http://pv.sohu.com/cityjson',proxies=proxies)
+                print('代理测试结果：',r.text)
         except (IndexError,json.decoder.JSONDecodeError):
             print('获取代理IP失败，程序退出！！')
             sys.exit()
         except requests.exceptions.ConnectionError:
-            print('代理接口拒绝连接，程序退出！！')
+            print('代理池拒绝连接，程序退出！！')
             sys.exit()
         return proxies
         

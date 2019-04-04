@@ -8,3 +8,5 @@
 ```
 docker run -d -t --restart=always --privileged --name Iproxypool -p 8000:8000 jackadam/ipproxypool
 ```
+> 测试代理接口使用的是[搜狐IP地址查询接口](http://pv.sohu.com/cityjson)
+python webscan.py -u http://www.maotailiaoning.com --proxy
