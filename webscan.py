@@ -1,13 +1,25 @@
 #!/usr/bin/env python3
 
+# 系统类库
 import sys,getopt
+
+# 网络类库
 import requests
 import socket
 import nmap
-import time
+
+# 多线程相关类库
 import threading
+from concurrent.futures import ThreadPoolExecutor
+
+# 辅助类库
+import time
 import json
 from queue import Queue
+from urllib.parse import urljoin
+from urllib.parse import urlparse
+from urllib.parse import urlunparse
+from posixpath import normpath
 
 # 核心类
 class Scan(object):
@@ -85,14 +97,15 @@ class Scan(object):
         # 如果出现‘gbk' codec can't decode bytes in position 31023: illegal multibyte sequence 
         # fileIndex = open('./dirScan/PHP.txt','r',encoding='gb18030',errors='ignore')
         fileIndex = open('./dirScan/DIR.txt','r')
+        listDIR = fileIndex.readlines()
         proxies = ''
         if proxy:
-            #获取代理
             proxies = self.__getProxyIp()
-        for line in fileIndex.readlines():
-            line=line.strip('\n')
-            test_url = url+'/'+line
-            self.indexScan(test_url,proxies)
+        with ThreadPoolExecutor(len(listDIR)) as executor:
+            for line in listDIR:
+                line=line.strip('\n')
+                test_url = myjoin(url,line)
+                executor.submit(self.indexScan,test_url,proxies)
 
     # 获取代理
     def __getProxyIp(self,types='2',count='1',country='国内'):
@@ -101,7 +114,6 @@ class Scan(object):
             ip = '************'
             while ip not in r.text:
                 r = requests.get(self.GET_PROXY+'?types='+types+'&count='+count+'&country='+country)
-                # print(self.GET_PROXY+'?types='+types+'&count='+count+'&country='+country,r.text)
                 ip_ports = json.loads(r.text)
                 ip = ip_ports[0][0]
                 port = ip_ports[0][1]
@@ -119,6 +131,12 @@ class Scan(object):
             sys.exit()
         return proxies
         
+
+def myjoin(base, url):
+    url1 = urljoin(base, url)
+    arr = urlparse(url1)
+    path = normpath(arr[2])
+    return urlunparse((arr.scheme, arr.netloc, path, arr.params, arr.query, arr.fragment))
 
 
 def main(argv):
@@ -146,7 +164,7 @@ def main(argv):
         elif opt == "--proxy":
             PROXY = True
     # 执行端口扫描
-
+    
     # 执行目录扫描
     if URL != '':
         SCAN.indexScancommon(URL,PROXY)
