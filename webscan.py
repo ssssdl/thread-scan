@@ -36,7 +36,7 @@ class Scan(object):
     '''
     端口扫描函数
     '''
-    # 基础tcp端口扫描 
+    # 最简单的基础tcp connect()端口扫描 扫描时间可以定制
     def portScan(self,ip,port,timeout = 1.0):
         try:
             #设置默认超时时间，可以根据网络状况扫描成度修改,这个扫描还有一定限制，只能是tcp扫描，会受到防火墙等等限制
@@ -47,6 +47,7 @@ class Scan(object):
             s.close()
         except:
             pass
+    # tcp SYN端口扫描，优点扫描隐蔽快速，缺点
     # nmap扫描，参数ip或ip段 端口范围,也可以指定参数扫描，详见：https://xiaix.me/python-nmapxiang-jie/
     def nmapPortScan(self,ip,portRange):
         #   采用默认nmap -oX - -p 20-443 -sV 45.76.101.190扫描
@@ -103,7 +104,7 @@ class Scan(object):
     def indexScan(self,url,proxies = ''):
         try:
             s = requests.session()
-            r = s.put(url,proxies=proxies)
+            r = s.head(url,proxies=proxies)
             if r.status_code in self.ok_code:
                 print(str(r.status_code)+" : "+url)
         except:
