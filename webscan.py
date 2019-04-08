@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 
-# 系统类库
+# 系统
 import sys,getopt
 
-# 网络类库
+# 网络
 import requests
 import socket
 import nmap
 
-# 多线程相关类库
+# 多线程相关
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
-# 辅助类库
+# 辅助
 import time
 import json
 from queue import Queue
@@ -23,13 +23,21 @@ from posixpath import normpath
 
 # 核心类
 class Scan(object):
+    '''
+    类成员变量,及初始化赋值
+    '''
+    # 定义目录扫描正确返回
     ok_code = [200,403,302]
     q = Queue()
     GET_PROXY = ''
     def __init__(self,get_proxy=''):
         self.GET_PROXY = get_proxy
+    
+    '''
+    端口扫描函数
+    '''
     # 基础tcp端口扫描 
-    def portScan(self,ip,port,timeout = 0.01):
+    def portScan(self,ip,port,timeout = 1.0):
         try:
             #设置默认超时时间，可以根据网络状况扫描成度修改,这个扫描还有一定限制，只能是tcp扫描，会受到防火墙等等限制
             socket.setdefaulttimeout(timeout)
@@ -55,20 +63,15 @@ class Scan(object):
             #lport.sort()#排序 没必要
             for port in lport:
                 print('port : %s \tstate : %s' %(port,np[ip][proto][port]['state'])) 
-    # 基础目录扫描
-    def indexScan(self,url,proxies = ''):
-        try:
-            s = requests.session()
-            r = s.put(url,proxies=proxies)
-            if r.status_code in self.ok_code:
-                print(str(r.status_code)+" : "+url)
-        except:
-            pass
-    # 常见端口扫描 测试扫描虚拟机耗时2s左右
+    # 常见端口扫描 添加扫描端口文件全部读取
     def portScanTop100(self,ip):
-        filePort = open('./portScan/portTop_100.txt','r')
-        for line in filePort.readlines():
-            self.portScan(ip,int(line,10))
+        with open('./portScan/portTop_100.txt','r') as filePort:
+            data = filePort.readlines()
+        with ThreadPoolExecutor(len(data)) as executor:
+            for each in data:
+                executor.submit(self.portScan,ip,int(each,10))
+
+
     # 多线程扫描端口工作程序
     def  queuePortScan(self):
         while not self.q.empty():
@@ -92,7 +95,20 @@ class Scan(object):
         for i in range(threadMount):
             threads[i].start()
         self.q.join()
-    # 目录扫描 根据字典大小耗时不等 相对耗时较长 要用多线程分配字典 24kb的字典扫了165s
+
+    '''
+    目录扫描相关
+    '''
+    # 基础目录扫描
+    def indexScan(self,url,proxies = ''):
+        try:
+            s = requests.session()
+            r = s.put(url,proxies=proxies)
+            if r.status_code in self.ok_code:
+                print(str(r.status_code)+" : "+url)
+        except:
+            pass
+    # 目录扫描 读取./dirScan/文件夹下的*.txt文件
     def indexScancommon(self,url,proxy=False):
         # 如果出现‘gbk' codec can't decode bytes in position 31023: illegal multibyte sequence 
         # fileIndex = open('./dirScan/PHP.txt','r',encoding='gb18030',errors='ignore')
@@ -101,10 +117,11 @@ class Scan(object):
         proxies = ''
         if proxy:
             proxies = self.__getProxyIp()
+        # 线程池技术，实测快了很多
         with ThreadPoolExecutor(len(listDIR)) as executor:
             for line in listDIR:
                 line=line.strip('\n')
-                test_url = myjoin(url,line)
+                test_url = self.myjoin(url,line)
                 executor.submit(self.indexScan,test_url,proxies)
 
     # 获取代理
@@ -122,7 +139,7 @@ class Scan(object):
                     'https':'http://%s:%s'%(ip,port)
                 }
                 r = requests.get('http://pv.sohu.com/cityjson',proxies=proxies)
-                print('代理测试结果：',r.text)
+                print('代理：',r.text)
         except (IndexError,json.decoder.JSONDecodeError):
             print('获取代理IP失败，程序退出！！')
             sys.exit()
@@ -131,15 +148,16 @@ class Scan(object):
             sys.exit()
         return proxies
         
-
-def myjoin(base, url):
-    url1 = urljoin(base, url)
-    arr = urlparse(url1)
-    path = normpath(arr[2])
-    return urlunparse((arr.scheme, arr.netloc, path, arr.params, arr.query, arr.fragment))
+    # url拼接
+    def myjoin(base, url):
+        url1 = urljoin(base, url)
+        arr = urlparse(url1)
+        path = normpath(arr[2])
+        return urlunparse((arr.scheme, arr.netloc, path, arr.params, arr.query, arr.fragment))
 
 
 def main(argv):
+    timeStart = time.time()
     IP = ''         # 要端口扫描的站点ip
     HOST = ''       # 要目录扫描的站点域名
     URL = ''        # 要目录扫描的url
@@ -154,7 +172,7 @@ def main(argv):
         sys.exit(2)
     for opt,arg in opts:
         if opt == "--help":
-            print(r'假装打印了一个help')
+            print(r'假装打印了一个help,等全都写完了在重新写一下')
             sys.exit()
         elif opt == "--version":
             print(r'webscan version 1.0 ( http://github.com/ssssdl/thread-scan )')
@@ -163,12 +181,17 @@ def main(argv):
             URL = arg
         elif opt == "--proxy":
             PROXY = True
+        elif opt == "-h":
+            IP = arg
     # 执行端口扫描
-    
+    if IP != '':
+        SCAN.portScanTop100(IP)
     # 执行目录扫描
     if URL != '':
         SCAN.indexScancommon(URL,PROXY)
-        
+    
+    timeEnd = time.time()
+    print('共花费了 %0.2f s' %(timeEnd-timeStart))
 
 if __name__=='__main__':
     main(sys.argv[1:])
